@@ -12,5 +12,5 @@ router = APIRouter(tags=["chat"])
 )
 async def chat_endpoint(user_message: UserMessage):
     # Call your main function with the user's message
-    result = await retrieve_and_answer(user_message.message)
+    result = retrieve_and_answer(user_message.message)
     return ChatResponse(response=result.choices[0].message.content)
