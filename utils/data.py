@@ -18,6 +18,23 @@ def load_idx_from_jsonl(file_path: str, idx: list) -> list:
 
 
 # Function to populate a dataframe with books info from JSON
+def safe_join(value, sep=" "):
+    """Convert value into a string safely.
+    - If list/tuple → join elements as strings
+    - If str → return as is
+    - If dict → join values
+    - Else → return None
+    """
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        return sep.join(str(v) for v in value if v is not None)
+    if isinstance(value, dict):
+        return sep.join(str(v) for v in value.values() if v is not None)
+    if isinstance(value, str):
+        return value
+    return str(value)  # fallback (e.g. int/float)
+
 def populate_dataframe_from_json(data, df: pd.DataFrame) -> None:
     """
     Populates a DataFrame with values extracted from an Amazon Book Reviews JSON entry.
@@ -26,19 +43,24 @@ def populate_dataframe_from_json(data, df: pd.DataFrame) -> None:
         data (Dict[str, Any]): A dictionary containing book data from Amazon Book Reviews.
         df (pd.DataFrame): The DataFrame to be populated with the book data.
     """
-    # Instance
+    
+    # Populate each column
     entry = {}
-   
-    # Populate each field
-    entry["uuid"] = None
+    
+    
+    entry["uuid"] = None  # to be filled later if needed
+
     entry["title"] = data.get("title")
-    entry["description"] = " ".join(data.get("features", []))
-    entry["author_name"] = data.get("author", {}).get("name") if (data.get("author", {})) else None
-    entry["author_about"] = " ".join(data.get("author", {}).get("about")) if (data.get("author", {})) else None
+    entry["description"] = safe_join(data.get("features"))
+    
+    author = data.get("author") or {}
+    entry["author_name"] = author.get("name") if isinstance(author, dict) else None
+    entry["author_about"] = safe_join(author.get("about") if isinstance(author, dict) else None)
+
     entry["avg_rating"] = data.get("average_rating")
     entry["rating_number"] = data.get("rating_number")
     entry["price"] = data.get("price")
-    entry["categories"] = " ".join(data.get("categories", []))
+    entry["categories"] = safe_join(data.get("categories"))
     
     # Ensure all DataFrame columns are present in entry, fill missing with None
     for col in df.columns:
@@ -60,3 +82,15 @@ def replace_none_with_empty_string(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
+
+def chunk_text(text, tokenizer, chunck_size: int = 256, step_size: int = 230):
+    tokens = tokenizer.tokenize(text)
+    token_ids = tokenizer.convert_tokens_to_ids(tokens)
+    
+    chunks = []
+    
+    for i in range(0, len(token_ids), step_size):
+        chunk = token_ids[i:i+chunck_size] if (i+chunck_size<=len(token_ids)) else token_ids[i:]
+        chunks.append(tokenizer.decode(chunk))
+        
+    return chunks
